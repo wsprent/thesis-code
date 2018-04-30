@@ -1,4 +1,6 @@
 *~
-/*/target
+/rust/*/target
 *.lock
 **/#*#
+/rust/target
+**/*.rs.bk
