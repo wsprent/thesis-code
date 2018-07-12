@@ -6,9 +6,10 @@ import numpy as np
 
 import argparse
 import itertools
+from random import random
 
 from stp import load_mtp
-
+import mtp
 
 DESCRIPTION = """
  Solves an instance of the MTP using Gurobi Python.
@@ -125,7 +126,6 @@ def separate_gsec_rel(model, x, y, x_bar, y_bar, G):
         S.discard(-1)
 
         if constr >= 0:
-
             lhs = sum_edges(S, x)
             rhs = grb.quicksum(y[v, v] for v in S if v != i)
             model.cbCut(lhs <= rhs)
@@ -163,8 +163,101 @@ def add_gsecs(model, x, y, cycles):
             model.cbLazy(lhs <= (ysum - y[k, k]))
 
 
+def pairwise(it):
+    it = iter(it)
+
+    one = next(it)
+    two = next(it)
+
+    while True:
+        yield one, two
+        one = two
+        two = next(it)
+
+
+def edge_weight(x, i, j):
+    if (i, j) not in x:
+        return x[j, i]
+    if (j, i) not in x:
+        return x[i, j]
+    return max(x[i, j], x[j, i])
+
+
+def path_length_by_x(p, x_vals):
+    length = 0
+    for i, j in pairwise(p):
+        length += 1 - edge_weight(x_vals, i, j)
+    return length
+
+
+def heuristics(G, x, y, x_val, y_val, model):
+    print("heuristics")
+
+    selected = {}
+    limit = 0.5
+    # while len(selected) == 0:
+    #     selected = {i for i in G.nodes
+    #                 if y_val[i, i] >= limit}
+    #     limit -= 0.1
+    #     if limit < 0:
+    #         return
+
+    selected = { i for i in G.nodes
+                 if y_val[i, i] > random() }
+    sp = dict(nx.shortest_path(G))
+
+    spl = {u: {v: path_length_by_x(p, x_val)
+               for v, p in d.items()}
+           for u, d in sp.items()}
+
+    # spl = dict(nx.shortest_path_length(G))
+
+    GS = nx.Graph()
+    for i in selected:
+        for j in selected:
+            if i >= j:
+                continue
+            GS.add_edge(i, j, weight=spl[i][j])
+
+    mst = nx.algorithms.tree.minimum_spanning_tree(GS)
+
+    S = set()
+    for i, j in mst.edges:
+        S = S.union(sp[i][j])
+
+    GH = G.subgraph(S)
+
+    mst = nx.algorithms.tree.minimum_spanning_tree(GH)
+
+    for i in G.nodes:
+        for j in G.nodes:
+            model.cbSetSolution(y[i, j], 0)
+
+        other_node = -1
+        if i in S:
+            model.cbSetSolution(y[i, i], 1)
+        else:
+            min_cost = None
+            other_node = None
+            for j in S:
+                a_cost = G.node[i]['assignment_costs'][j]
+                if min_cost is None:
+                    min_cost = a_cost
+                    other_node = j
+                elif a_cost <= min_cost:
+                    other_node = j
+                    min_cost = G.node[i]['assignment_costs'][j]
+            model.cbSetSolution(y[i, other_node], 1)
+    for i, j in G.edges:
+        model.cbSetSolution(edge(x, i, j), 1
+                            if (i, j) in mst.edges else 0)
+    print("Heuristics cost:", mtp.cost(mst, G))
+    print("Gurobi cost:", model.cbUseSolution())
+    model._mst = mst
+
+
 def callback(G, x, y, model, where):
-    if False and where == grb.GRB.callback.MIPSOL:
+    if where == grb.GRB.callback.MIPSOL:
         x_val = model.cbGetSolution(x)
         # y_val = model.cbGetSolution(y)
 
@@ -184,71 +277,16 @@ def callback(G, x, y, model, where):
 
         status = model.cbGet(grb.GRB.Callback.MIPNODE_STATUS)
         nodecount = model.cbGet(grb.GRB.Callback.MIPNODE_NODCNT)
-        print(model._last_node, nodecount)
         if status == grb.GRB.OPTIMAL:
             cuts = separate_gsec_rel(model, x, y, x_val, y_val, G)
             if cuts > 0:
-                print("Generated", cuts, "cuts.")
+                pass
+                # print("Generated", cuts, "cuts.")
             # 0
             # return
         if status == grb.GRB.OPTIMAL and model._last_node <= nodecount - 10:
-            print("heuristics")
             model._last_node = nodecount
-
-            selected = {}
-            limit = 0.5
-            while len(selected) == 0:
-                selected = {i for i in G.nodes
-                            if y_val[i, i] >= limit}
-                limit -= 0.1
-
-            sp = dict(nx.shortest_path(G))
-            spl = dict(nx.shortest_path_length(G))
-
-            GS = nx.Graph()
-            for i in selected:
-                for j in selected:
-                    if i >= j:
-                        continue
-                    GS.add_edge(i, j, weight=spl[i][j])
-
-            mst = nx.algorithms.tree.minimum_spanning_tree(GS)
-
-            S = set()
-            for i, j in mst.edges:
-                S = S.union(sp[i][j])
-
-            GH = G.subgraph(S)
-
-            mst = nx.algorithms.tree.minimum_spanning_tree(GH)
-
-            if not nx.is_connected(mst):
-                exit(1)
-            for i in G.nodes:
-                for j in G.nodes:
-                    model.cbSetSolution(y[i, j], 0)
-
-                other_node = -1
-                if i in S:
-                    model.cbSetSolution(y[i, i], 1)
-                else:
-                    min_cost = None
-                    other_node = None
-                    for j in S:
-                        a_cost = G.node[i]['assignment_costs'][j]
-                        if min_cost is None:
-                            min_cost = a_cost
-                            other_node = j
-                        elif a_cost <= min_cost:
-                            other_node = j
-                            min_cost = G.node[i]['assignment_costs'][j]
-                    model.cbSetSolution(y[i, other_node], 1)
-            for i, j in G.edges:
-                model.cbSetSolution(edge(x, i, j), 1
-                                    if (i, j) in mst.edges else 0)
-            model.cbUseSolution()
-            model._mst = mst
-        print("done")
+            heuristics(G, x, y, x_val, y_val, model)
 
 
 def main():
@@ -261,7 +299,7 @@ def main():
 
     model, x, y = build_ilp_model(g)
 
-    model.Params.lazyConstraints = 0
+    model.Params.lazyConstraints = 1
     model.Params.preCrush = 1
     model.Params.heuristics = 0
 
@@ -269,8 +307,8 @@ def main():
     model._last_node = -49
     model.modelSense = grb.GRB.MINIMIZE
 
-    for v in g.nodes:
-        y[v, v].setAttr(grb.GRB.Attr.BranchPriority, 2)
+    #for v in g.nodes:
+    #    y[v, v].setAttr(grb.GRB.Attr.BranchPriority, 2)
 
     model.optimize(lambda m, w: callback(g, x, y, m, w))
 
