@@ -6,10 +6,15 @@ import numpy as np
 
 import argparse
 import itertools
+import time
+import os
+
 from random import random
 
-from stp import load_mtp
 import mtp
+
+from stp import load_mtp
+from mtp import d, pairwise
 
 DESCRIPTION = """
  Solves an instance of the MTP using Gurobi Python.
@@ -17,8 +22,8 @@ DESCRIPTION = """
 
 BIG_INT = np.iinfo(np.int64).max
 BIG_FLOAT = np.finfo(np.float64).max
-EPSILON = 10**(-9)
-MAX_CUTS = 50
+EPSILON = 10**(-5)
+MAX_CUTS = 250
 
 
 def edge(x, i, j):
@@ -37,7 +42,7 @@ def build_ilp_model(g):
 
     # OBJECTIVE
     edge_costs = grb.quicksum(g[i][j]['weight'] * x[i, j] for i, j in g.edges)
-    assignment_cost = grb.quicksum(g.node[u]['assignment_costs'][v] * y[u, v]
+    assignment_cost = grb.quicksum(d(g, u, v) * y[u, v]
                                    for u in g.nodes
                                    for v in g.nodes)
     model.setObjective(edge_costs + assignment_cost)
@@ -125,7 +130,7 @@ def separate_gsec_rel(model, x, y, x_bar, y_bar, G):
 
         S.discard(-1)
 
-        if constr >= 0:
+        if constr - EPSILON > 0:
             lhs = sum_edges(S, x)
             rhs = grb.quicksum(y[v, v] for v in S if v != i)
             model.cbCut(lhs <= rhs)
@@ -160,19 +165,8 @@ def add_gsecs(model, x, y, cycles):
         lhs = sum_edges(cycle, x)
 
         for k in cycle:
-            model.cbLazy(lhs <= (ysum - y[k, k]))
-
-
-def pairwise(it):
-    it = iter(it)
-
-    one = next(it)
-    two = next(it)
-
-    while True:
-        yield one, two
-        one = two
-        two = next(it)
+            if lhs <= (ysum - y[k, k]):
+                model.cbLazy(lhs <= (ysum - y[k, k]))
 
 
 def edge_weight(x, i, j):
@@ -194,16 +188,16 @@ def heuristics(G, x, y, x_val, y_val, model):
     print("heuristics")
 
     selected = {}
-    limit = 0.5
-    # while len(selected) == 0:
-    #     selected = {i for i in G.nodes
-    #                 if y_val[i, i] >= limit}
-    #     limit -= 0.1
-    #     if limit < 0:
-    #         return
+    limit = 0.7
+    while len(selected) < 2:
+        selected = {i for i in G.nodes
+                    if y_val[i, i] >= limit}
+        limit -= 0.1
+        if limit < 0:
+            return
 
-    selected = { i for i in G.nodes
-                 if y_val[i, i] > random() }
+    #selected = {i for i in G.nodes
+    #            if y_val[i, i] > random()}
     sp = dict(nx.shortest_path(G))
 
     spl = {u: {v: path_length_by_x(p, x_val)
@@ -240,13 +234,13 @@ def heuristics(G, x, y, x_val, y_val, model):
             min_cost = None
             other_node = None
             for j in S:
-                a_cost = G.node[i]['assignment_costs'][j]
+                a_cost = d(G, i, j)
                 if min_cost is None:
                     min_cost = a_cost
                     other_node = j
                 elif a_cost <= min_cost:
                     other_node = j
-                    min_cost = G.node[i]['assignment_costs'][j]
+                    min_cost = d(G, i, j)
             model.cbSetSolution(y[i, other_node], 1)
     for i, j in G.edges:
         model.cbSetSolution(edge(x, i, j), 1
@@ -280,58 +274,83 @@ def callback(G, x, y, model, where):
         if status == grb.GRB.OPTIMAL:
             cuts = separate_gsec_rel(model, x, y, x_val, y_val, G)
             if cuts > 0:
-                pass
                 # print("Generated", cuts, "cuts.")
+                pass
             # 0
             # return
-        if status == grb.GRB.OPTIMAL and model._last_node <= nodecount - 10:
+
+        if status == grb.GRB.OPTIMAL and model._last_node < nodecount - 40:
             model._last_node = nodecount
             heuristics(G, x, y, x_val, y_val, model)
 
 
 def main():
     parser = argparse.ArgumentParser(description=DESCRIPTION)
-    parser.add_argument('mtp', help='The MTP instance as a stp file')
-
+    parser.add_argument("mtp", help="The MTP instance as a stp file")
+    parser.add_argument("--time", "-t", help="Output optimisation timings")
+    parser.add_argument("--time-limit", "-l", help="Set timelimit for the gurobi optimiser",
+                        type=int)
+    parser.add_argument("-r", "--repeat", metavar="<n>",
+                        help="Repeat the optimisation n times - only makes sense with the -t switch",
+                        type=int, default=1)
     args = parser.parse_args()
 
-    g, int_only = load_mtp(args.mtp)
+    runs = []
+    with open(args.mtp) as fp:
+        g, int_only = load_mtp(fp)
 
-    model, x, y = build_ilp_model(g)
+    for i in range(args.repeat):
+        if args.time is not None:
+            start = time.time()
+        model, x, y = build_ilp_model(g)
 
-    model.Params.lazyConstraints = 1
-    model.Params.preCrush = 1
-    model.Params.heuristics = 0
+        model.Params.lazyConstraints = 1
+        model.Params.preCrush = 1
+        model.Params.heuristics = 0
 
-    model._int_only = int_only
-    model._last_node = -49
-    model.modelSense = grb.GRB.MINIMIZE
+        if args.time_limit:
+            model.Params.timeLimit = args.time_limit
 
-    #for v in g.nodes:
-    #    y[v, v].setAttr(grb.GRB.Attr.BranchPriority, 2)
+        model._int_only = int_only
+        model._last_node = -49
+        model.modelSense = grb.GRB.MINIMIZE
 
-    model.optimize(lambda m, w: callback(g, x, y, m, w))
+        for v in g.nodes:
+            y[v, v].setAttr(grb.GRB.Attr.BranchPriority, 2)
 
-    x_val = model.getAttr('X', x)
-    y_val = model.getAttr('X', y)
+        model.optimize(lambda m, w: callback(g, x, y, m, w))
 
-    g_fin = nx.Graph()
+        x_val = model.getAttr("X", x)
+        y_val = model.getAttr("X", y)
 
-    seen = set()
-    for i, j in x_val.keys():
-        if x_val[i, j] > 0.5:
-            seen.add(i)
-            seen.add(j)
-            print(i, j, x_val[i, j])
-            g_fin.add_edge(i, j)
+        g_fin = nx.Graph()
 
-    for i in g.nodes:
-        if y_val[i, i] > 0:
-            print(i, y_val[i, i])
-    print(nx.is_connected(g_fin))
-    print(nx.cycle_basis(g_fin))
-    print(nx.is_connected(model._mst))
-    print(nx.cycle_basis(model._mst))
+        seen = set()
+        for i, j in x_val.keys():
+            if x_val[i, j] > 0.5:
+                seen.add(i)
+                seen.add(j)
+                print(i, j, x_val[i, j])
+                g_fin.add_edge(i, j)
 
-if __name__ == '__main__':
+        for i in g.nodes:
+            if y_val[i, i] > 0:
+                print(i, y_val[i, i])
+
+        print(model.status)
+        if args.time is not None:
+            end = time.time()
+            runs.append((model.status, end - start, model.objVal))
+
+    if args.time is not None:
+        directory = os.path.join(args.time, args.mtp.split("/")[-2])
+        filename = args.mtp.split("/")[-1] + "." + str(time.time())
+
+        if os.path.exists(directory):
+            os.makedirs(directory)
+        with open(os.path.join(directory, filename), "w") as f:
+            for st, timing, obj in runs:
+                print(st, timing, obj, file=f)
+
+if __name__ == "__main__":
     main()

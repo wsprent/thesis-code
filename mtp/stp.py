@@ -1,4 +1,7 @@
 import networkx as nx
+from mtp import d, BIG_FLOAT
+
+INF = float('inf')
 
 
 def is_int(s):
@@ -87,41 +90,70 @@ def add_assignment_costs(f, g):
     return int_only
 
 
-def load_pcstp(path):
+def load_pcstp(fp):
     '''
     Loads an .stp file into a networkX graph
     '''
     g = nx.Graph()
     int_only = True
-    with open(path) as f:
-        for line in f:
-            if line.startswith('SECTION'):
-                suffix = line[8:].strip()
+    for line in fp:
+        if line.startswith('SECTION'):
+            suffix = line[8:].strip()
 
-                if suffix == 'Graph':
-                    int_only = grow_graph(f, g)
-                elif suffix == 'Terminals':
-                    N, int_only_N = add_terminal_prizes(f, g)
-                else:
-                    chomp_section(f)
+            if suffix == 'Graph':
+                int_only = grow_graph(fp, g)
+            elif suffix == 'Terminals':
+                N, int_only_N = add_terminal_prizes(fp, g)
+            else:
+                chomp_section(fp)
     return g, N, (int_only and int_only_N)
 
 
-def load_mtp(path):
+def load_mtp(fp):
     '''
     Loads an .stp file in MTP format into a networkX graph
     '''
     g = nx.Graph()
     int_only = True
-    with open(path) as f:
-        for line in f:
-            if line.startswith('SECTION'):
-                suffix = line[8:].strip()
-
-                if suffix == 'Graph':
-                    int_only = grow_graph(f, g) and int_only
-                elif suffix == 'AssignmentCosts':
-                    int_only = add_assignment_costs(f, g) and int_only
-                else:
-                    chomp_section(f)
+    for line in fp:
+        if line.startswith('SECTION'):
+            suffix = line[8:].strip()
+            if suffix == 'Graph':
+                int_only = grow_graph(fp, g) and int_only
+            elif suffix == 'AssignmentCosts':
+                int_only = add_assignment_costs(fp, g) and int_only
+            else:
+                chomp_section(fp)
     return g, int_only
+# Writing:
+
+
+def write_header():
+    print("33D32945 STP File, STP Format Version 1.0")
+    print()
+
+
+def write_graph(g):
+
+    print("SECTION Graph")
+    print("Nodes", g.number_of_nodes())
+    print("Edges", g.number_of_edges())
+    for u, v, c in g.edges(data="weight"):
+            print("E", u, v, c)
+    print("END")
+    print()
+
+
+def write_assignment_costs(g):
+    print("SECTION AssignmentCosts")
+    for u in g.nodes:
+        for v in g.nodes:
+            if d(g, u, v) < BIG_FLOAT:
+                print("D", u, v, d(g, u, v))
+    print("END")
+
+
+def write_stp(g):
+    write_header()
+    write_graph(g)
+    write_assignment_costs(g)
