@@ -18,6 +18,5 @@ for file in PCSTP/*/*; do
         echo "something went horribly wrong with $file"
         exit 1
     fi
-    
 done
     

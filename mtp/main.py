@@ -346,11 +346,12 @@ def main():
         directory = os.path.join(args.time, args.mtp.split("/")[-2])
         filename = args.mtp.split("/")[-1] + "." + str(time.time())
 
-        if os.path.exists(directory):
+        if not os.path.exists(directory):
             os.makedirs(directory)
         with open(os.path.join(directory, filename), "w") as f:
             for st, timing, obj in runs:
                 print(st, timing, obj, file=f)
+
 
 if __name__ == "__main__":
     main()
