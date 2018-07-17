@@ -48,7 +48,7 @@ def assignment_by_distance(g, be_int=True):
 
         for u in g.nodes:
             dist = dists[u] if u in dists else INF
-            if p > 0:
+            if p > 0 and u != v:
                 dist = p * (dist / avg_dist) if avg_dist else INF
                 d[u] = int(dist) if be_int else dist
             else:

@@ -23,14 +23,13 @@ DESCRIPTION = """
 BIG_INT = np.iinfo(np.int64).max
 BIG_FLOAT = np.finfo(np.float64).max
 EPSILON = 10**(-5)
-MAX_CUTS = 250
 
 
 def edge(x, i, j):
     return x[i, j] if i <= j else x[j, i]
 
 
-def build_ilp_model(g):
+def build_ilp_model(g, args):
     model = grb.Model('mtp')
 
     # Edge Selection
@@ -69,8 +68,10 @@ def build_ilp_model(g):
     for i in g.nodes:
         model.addConstr(y[i, i] <=
                         grb.quicksum(edge(x, i, j) for j in g.adj[i]))
-        for j in g.adj[i]:
-            model.addConstr(y[i, i] >= edge(x, i, j))
+
+        if args.strengthen:
+            for j in g.adj[i]:
+                model.addConstr(y[i, i] >= edge(x, i, j))
     return model, x, y
 
 
@@ -153,7 +154,7 @@ def separate_gsec_rel(model, x, y, x_bar, y_bar, G):
         F[-1][i]['capacity'] = i_capacity
         F[i][-2]['capacity'] = float('inf')
 
-        if cuts >= MAX_CUTS:
+        if cuts >= model._args.max_cuts:
             return cuts
     return cuts
 
@@ -196,7 +197,7 @@ def heuristics(G, x, y, x_val, y_val, model):
         if limit < 0:
             return
 
-    #selected = {i for i in G.nodes
+    # selected = {i for i in G.nodes
     #            if y_val[i, i] > random()}
     sp = dict(nx.shortest_path(G))
 
@@ -245,8 +246,10 @@ def heuristics(G, x, y, x_val, y_val, model):
     for i, j in G.edges:
         model.cbSetSolution(edge(x, i, j), 1
                             if (i, j) in mst.edges else 0)
-    print("Heuristics cost:", mtp.cost(mst, G))
-    print("Gurobi cost:", model.cbUseSolution())
+
+    if model._args.debug:
+        print("Heuristics cost:", mtp.cost(mst, G))
+        print("Gurobi cost:", model.cbUseSolution())
     model._mst = mst
 
 
@@ -279,7 +282,9 @@ def callback(G, x, y, model, where):
             # 0
             # return
 
-        if status == grb.GRB.OPTIMAL and model._last_node < nodecount - 40:
+        if status == grb.GRB.OPTIMAL \
+           and not model._args.no_heuristics \
+           and model._last_node < nodecount - 40:
             model._last_node = nodecount
             heuristics(G, x, y, x_val, y_val, model)
 
@@ -293,6 +298,11 @@ def main():
     parser.add_argument("-r", "--repeat", metavar="<n>",
                         help="Repeat the optimisation n times - only makes sense with the -t switch",
                         type=int, default=1)
+    parser.add_argument("--no-heuristics", action="store_true", default=False)
+    parser.add_argument("--strengthen", action="store_true", default=False)
+    parser.add_argument("--max-cuts", type=int, default=50,
+                        help="The max number of user cuts to be made at each node")
+    parser.add_argument("--debug", action="store_true", default=False)
     args = parser.parse_args()
 
     runs = []
@@ -302,15 +312,19 @@ def main():
     for i in range(args.repeat):
         if args.time is not None:
             start = time.time()
-        model, x, y = build_ilp_model(g)
+        model, x, y = build_ilp_model(g, args)
 
         model.Params.lazyConstraints = 1
         model.Params.preCrush = 1
-        model.Params.heuristics = 0
+
+        if not args.no_heuristics:
+            # Disable Gurobi Heuristics
+            model.Params.heuristics = 0
 
         if args.time_limit:
             model.Params.timeLimit = args.time_limit
 
+        model._args = args
         model._int_only = int_only
         model._last_node = -49
         model.modelSense = grb.GRB.MINIMIZE
@@ -326,16 +340,18 @@ def main():
         g_fin = nx.Graph()
 
         seen = set()
+        print("Facility:")
         for i, j in x_val.keys():
             if x_val[i, j] > 0.5:
                 seen.add(i)
                 seen.add(j)
-                print(i, j, x_val[i, j])
+                print(i, j, x_val[i, j], g.adj[i][j]["weight"])
                 g_fin.add_edge(i, j)
-
+        print("Assignments:")
         for i in g.nodes:
-            if y_val[i, i] > 0:
-                print(i, y_val[i, i])
+            for j in g.nodes:
+                if y_val[i, j] > 0:
+                    print(i, j, y_val[i, j], d(g, i, j))
 
         print(model.status)
         if args.time is not None:

@@ -12,7 +12,7 @@ for file in PCSTP/*/*; do
     ending=$(echo $file|cut -d'/' -f2-)
     folders=$(dirname $ending)
     mkdir -p MTP/$folders
-    if $convert $file > MTP/$ending; then
+    if $convert -f $file > MTP/$ending; then
         echo "converted $file to MTP/$ending"
     else
         echo "something went horribly wrong with $file"
