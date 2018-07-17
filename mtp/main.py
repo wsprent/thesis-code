@@ -350,7 +350,7 @@ def main():
             os.makedirs(directory)
         with open(os.path.join(directory, filename), "w") as f:
             for st, timing, obj in runs:
-                print(st, timing, obj, file=f)
+                print(g.number_of_nodes(), g.number_of_edges(), st, timing, obj, file=f)
 
 
 if __name__ == "__main__":

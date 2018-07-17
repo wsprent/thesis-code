@@ -7,6 +7,6 @@
 .venv/
 data/**
 __pycache__
-gurobi.log
 *.pyc
 /timings/
+*.log

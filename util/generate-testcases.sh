@@ -11,7 +11,7 @@ fi
 
 # We want 35/50/70 node versions of the JMP series
 for size in 35 50 70; do
-    dir=tests/MTP-$size
+    dir=tests/JMP-$size
     mkdir -p $dir
     edges=$[$size*3]
     for file in MTP/JMP/*; do
@@ -29,4 +29,4 @@ done
 
 # For compleness sake, we also take the JMP full versions
 
-ln MTP/JMP tests/JMP-FULL
+cp MTP/JMP tests/JMP-FULL
