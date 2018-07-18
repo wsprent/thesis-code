@@ -362,6 +362,12 @@ def main():
         directory = os.path.join(args.time, args.mtp.split("/")[-2])
         filename = args.mtp.split("/")[-1] + "." + str(time.time())
 
+        directory += "-H" if not args.no_heuristics else "-h"
+
+        directory += "-S" if args.strengthen else "-s"
+
+        directory += "-MC{}".format(args.max_cuts)
+
         if not os.path.exists(directory):
             os.makedirs(directory)
         with open(os.path.join(directory, filename), "w") as f:

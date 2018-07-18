@@ -50,6 +50,8 @@ for i; do
     esac
 done
 
+extra_args=$(cat)
+
 n=$#
 echo "Running $n tests"
 i=1
@@ -57,6 +59,9 @@ for stp in $@; do
     echo "Running test $i out of $n"
     cmd="mtp/main.py -r $reps -l $timeout -t ./timings $stp"
 
+    if [[ ! -z $extra_args ]]; then
+        cmd="$cmd $extra_args"
+    fi
     echo $cmd
 
     if [[ -z $log ]]; then
