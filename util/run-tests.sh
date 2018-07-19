@@ -49,30 +49,38 @@ for i; do
             break;;
     esac
 done
-
 extra_args=$(cat)
+declare -a args_array
+if [[ -z extra_args ]]; then
+    args_array[0] = ""
+else
+    IFS=';' read -r -a args_array <<< "$extra_args"
+fi
 
-n=$#
+n=$[${#}*${#args_array[@]}]
 echo "Running $n tests"
 i=1
 for stp in $@; do
-    echo "Running test $i out of $n"
     cmd="mtp/main.py -r $reps -l $timeout -t ./timings $stp"
 
-    if [[ ! -z $extra_args ]]; then
-        cmd="$cmd $extra_args"
-    fi
-    echo $cmd
+    for extra_args in "${args_array[@]}"; do
+        echo "Running test $i out of $n"
 
-    if [[ -z $log ]]; then
-        $cmd
-    else
-        $cmd &> $log
-    fi
+        if [[ ! -z $extra_args ]]; then
+            cmd="$cmd $extra_args"
+        fi
+        echo $cmd
 
-    if [[ $? != 0 ]]; then
-        echo "Something went wrong with running $stp"
-        exit 1
-    fi
-    let "i++"
+        if [[ -z $log ]]; then
+            $cmd
+        else
+            $cmd &> $log
+        fi
+
+        if [[ $? != 0 ]]; then
+            echo "Something went wrong with running $stp"
+            exit 1
+        fi
+        let "i++"
+    done
 done

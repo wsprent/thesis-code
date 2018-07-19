@@ -186,8 +186,6 @@ def path_length_by_x(p, x_vals):
 
 
 def heuristics(G, x, y, x_val, y_val, model):
-    print("heuristics")
-
     selected = {}
     limit = 0.7
     while len(selected) < 2:

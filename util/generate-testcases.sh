@@ -9,24 +9,32 @@ else
     truncate=../mtp/truncate_instance.py
 fi
 
-# We want 35/50/70 node versions of the JMP series
-for size in 35 50 70; do
-    dir=tests/JMP-$size
-    mkdir -p $dir
-    edges=$[$size*3]
-    for file in MTP/JMP/*; do
-        [ -e "$file" ] || continue
-        base=$(basename $file)
+function trunc() {
+    dir=$1
 
-        if $truncate -f $file -n $size -e $edges > $dir/$base; then
-            echo "truncated $file to $dir/$base"
-        else
-            echo "something went horribly wrong with $file"
-            exit 1
-        fi
-    done
+    file=$2
+    [ -e "$file" ] || continue
+    mkdir -p $dir
+    base=$(basename $file)
+    
+    if $truncate -f $file -n $3 -e $4 > $dir/$base; then
+        echo "truncated $file to $dir/$base"
+    else
+        echo "something went horribly wrong with $file"
+        exit 1
+    fi
+}
+
+# 100 -> 40 400 -> 70
+
+for file in MTP/JMP/*100*.stp; do
+    trunc "tests/JMP-40" $file 40 100
 done
 
-# For compleness sake, we also take the JMP full versions
+for file in MTP/JMP/*400*.stp; do
+    trunc "tests/JMP-70" $file 70 150
+done
 
-cp MTP/JMP tests/JMP-FULL
+# For completeness sake, we also take the JMP 100 full versions
+mkdir -p tests/JMP-100
+cp MTP/JMP/*100* tests/JMP-100
