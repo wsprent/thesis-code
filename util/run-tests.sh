@@ -61,10 +61,10 @@ n=$[${#}*${#args_array[@]}]
 echo "Running $n tests"
 i=1
 for stp in $@; do
-    cmd="mtp/main.py -r $reps -l $timeout -t ./timings $stp"
 
     for extra_args in "${args_array[@]}"; do
         echo "Running test $i out of $n"
+        cmd="mtp/main.py -r $reps -l $timeout -t ./timings $stp"
 
         if [[ ! -z $extra_args ]]; then
             cmd="$cmd $extra_args"
