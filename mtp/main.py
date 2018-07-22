@@ -135,6 +135,7 @@ def separate_gsec_rel(model, x, y, x_bar, y_bar, G):
             lhs = sum_edges(S, x)
             rhs = grb.quicksum(y[v, v] for v in S if v != i)
             model.cbCut(lhs <= rhs)
+            cuts += 1
 
             rhs_bar = grb.quicksum(y_bar[v, v] for v in S if v != i)
             lhs_bar = sum_edges(S, x_bar)
@@ -142,7 +143,7 @@ def separate_gsec_rel(model, x, y, x_bar, y_bar, G):
                 # print('not violated: ', lhs_bar.getValue(), '<=', rhs_bar.getValue())
                 pass
             else:
-                cuts += 1
+                pass
 
         else:
             rhs_bar = grb.quicksum(y_bar[v, v] for v in S if v != i).getValue()
