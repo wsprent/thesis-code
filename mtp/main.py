@@ -255,7 +255,7 @@ def heuristics(G, x, y, x_val, y_val, model):
 def callback(G, x, y, model, where):
     if where == grb.GRB.callback.MIPSOL:
         x_val = model.cbGetSolution(x)
-        # y_val = model.cbGetSolution(y)
+        y_val = model.cbGetSolution(y)
 
         g = nx.Graph()
 
