@@ -268,7 +268,7 @@ def callback(G, x, y, model, where):
 
     elif where == grb.GRB.callback.MIPNODE:
         x_val = model.cbGetNodeRel(x)
-        y_val = model.cbGetNodeRel(y)
+        arar_val = model.cbGetNodeRel(y)
 
         status = model.cbGet(grb.GRB.Callback.MIPNODE_STATUS)
         nodecount = model.cbGet(grb.GRB.Callback.MIPNODE_NODCNT)
@@ -354,23 +354,23 @@ def main():
         print(model.status)
         if args.time is not None:
             end = time.time()
-            runs.append((model.status, end - start, model.objVal))
+            runs.append((model.status, end - start, model.objBound, model.objVal))
 
     if args.time is not None:
         directory = os.path.join(args.time, args.mtp.split("/")[-2])
         filename = args.mtp.split("/")[-1] + "." + str(time.time())
 
-        directory += "-H" if not args.no_heuristics else "-h"
+        directory += "-h+" if not args.no_heuristics else "-h"
 
-        directory += "-S" if args.strengthen else "-s"
+        directory += "-s+" if args.strengthen else "-s"
 
         directory += "-MC{}".format(args.max_cuts)
 
         if not os.path.exists(directory):
             os.makedirs(directory)
         with open(os.path.join(directory, filename), "w") as f:
-            for st, timing, obj in runs:
-                print(g.number_of_nodes(), g.number_of_edges(), st, timing, obj, file=f)
+            for st, timing, bound, obj in runs:
+                print(g.number_of_nodes(), g.number_of_edges(), st, timing, bound, obj, file=f)
 
 
 if __name__ == "__main__":
