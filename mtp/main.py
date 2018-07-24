@@ -269,11 +269,12 @@ def callback(G, x, y, model, where):
 
     elif where == grb.GRB.callback.MIPNODE:
         x_val = model.cbGetNodeRel(x)
-        arar_val = model.cbGetNodeRel(y)
+        y_val = model.cbGetNodeRel(y)
 
         status = model.cbGet(grb.GRB.Callback.MIPNODE_STATUS)
         nodecount = model.cbGet(grb.GRB.Callback.MIPNODE_NODCNT)
-        if status == grb.GRB.OPTIMAL:
+        if status == grb.GRB.OPTIMAL \
+           and model._args.max_cuts > 0:
             cuts = separate_gsec_rel(model, x, y, x_val, y_val, G)
             if cuts > 0:
                 # print("Generated", cuts, "cuts.")
@@ -283,7 +284,7 @@ def callback(G, x, y, model, where):
 
         if status == grb.GRB.OPTIMAL \
            and not model._args.no_heuristics \
-           and model._last_node < nodecount - 40:
+           and model._last_node < nodecount - 25:
             model._last_node = nodecount
             heuristics(G, x, y, x_val, y_val, model)
 
@@ -299,7 +300,7 @@ def main():
                         type=int, default=1)
     parser.add_argument("--no-heuristics", action="store_true", default=False)
     parser.add_argument("--strengthen", action="store_true", default=False)
-    parser.add_argument("--max-cuts", type=int, default=50,
+    parser.add_argument("--max-cuts", type=int, default=25,
                         help="The max number of user cuts to be made at each node")
     parser.add_argument("--debug", action="store_true", default=False)
     args = parser.parse_args()
@@ -314,7 +315,9 @@ def main():
         model, x, y = build_ilp_model(g, args)
 
         model.Params.lazyConstraints = 1
-        model.Params.preCrush = 1
+
+        if args.max_cuts > 0:
+            model.Params.preCrush = 1
 
         if not args.no_heuristics:
             # Disable Gurobi Heuristics

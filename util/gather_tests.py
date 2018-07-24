@@ -1,6 +1,3 @@
-#! /usr/bin/env python3
-
-import sys
 import os
 import operator
 
@@ -38,6 +35,7 @@ class TestCase(object):
 
             times.append(t)
 
+        self.gap = (self.obj - self.bound) / self.obj
         self.times = times
 
         # xxxx/timings/series-size-keys
@@ -129,24 +127,6 @@ def tprint(*args, line=True, lb=True, **kwargs):
     print(*args, sep=" & ", end=end, **kwargs)
 
 
-def multicol(n, s):
-    return "\multicolumn{{{}}}{{|c|}}{{{}}}".format(n, s)
-
-
-def get_max_cuts(tcs):
-
-    for t in tcs:
-        if not t.heuristics:
-            continue
-        if t.max_cuts == 10:
-            ten = t
-        elif t.max_cuts == 50:
-            fifty = t
-        elif t.max_cuts == 150:
-            onefifty = t
-    return ten, fifty, onefifty
-
-
 def format_time(t):
     return "${:.5g}$".format(t)
 
@@ -155,26 +135,18 @@ def format_obj(t):
     return "${:.2f}$".format(t)
 
 
-def print_max_cut_table(series):
+def format_gap(g):
+    string = "{:.2%}".format(g)
+    if g == 0:
+        string = "\\mathbf{" + string + "}"
+    return ("$" + string + "$").replace("%", "\\%")
 
-    cols = 5
-    tprint("\multirow{2}{*}{Instance}", multicol(3, "$t(s)$"), "\multirow{2}{*}{$OPT$}",
-           line=False)
-    tprint("", "MC-10", "MC-50", "MC-150", "")
 
-    for sname, tests in series.items():
-        tprint(lb=False)
-        tprint("", multicol(cols-2, sname), "")
-        names = sorted(tests.keys())
-        for name in names:
-            a, b, c = get_max_cuts(tests[name])
-            tprint(name,
-                   format_time(a.mean),
-                   format_time(b.mean),
-                   format_time(c.mean),
-                   format_obj(c.obj) if all((a.opt, b.opt, c.opt)) else "N/A",
-                   line=False)
-        tprint("", lb=False)
+def multicol(n, s):
+    return "\multicolumn{{{}}}{{|c|}}{{{}}}".format(n, s)
+
+
+def print_ending():
     print("""
 %%%
 %%% Local Variables:
@@ -184,14 +156,13 @@ def print_max_cut_table(series):
     """)
 
 
-def main():
-    timings_dir = sys.argv[1] if len(sys.argv) > 1 else "./timings"
+def get_max_cuts(tcs):
 
-    series = organize_tests(get_tests(timings_dir))
-
-    print_max_cut_table(series)
-
-
-
-if __name__ == "__main__":
-    main()
+    for t in tcs:
+        if t.heuristics:
+            continue
+        if t.max_cuts == 1:
+            one = t
+        elif t.max_cuts == 25:
+            tf = t
+    return one, tf

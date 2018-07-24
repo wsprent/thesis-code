@@ -25,16 +25,16 @@ function trunc() {
     fi
 }
 
-# 100 -> 40 400 -> 70
+# 100 -> 65 400 -> 85
 
-for file in MTP/JMP/*100*.stp; do
-    trunc "tests/JMP-40" $file 40 100
+for file in MTP/JMP/K100*.stp; do
+    trunc "tests/JMP-60" $file 60 120
 done
 
-for file in MTP/JMP/*400*.stp; do
-    trunc "tests/JMP-70" $file 70 150
+for file in MTP/JMP/K400*.stp; do
+    trunc "tests/JMP-80" $file 80 170
 done
 
 # For completeness sake, we also take the JMP 100 full versions
-mkdir -p tests/JMP-100
-cp MTP/JMP/*100* tests/JMP-100
+# mkdir -p tests/JMP-100
+# cp MTP/JMP/*100* tests/JMP-100
