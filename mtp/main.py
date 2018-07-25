@@ -198,13 +198,17 @@ def heuristics(G, x, y, x_val, y_val, model):
 
     # selected = {i for i in G.nodes
     #            if y_val[i, i] > random()}
-    sp = dict(nx.shortest_path(G))
 
-    spl = {u: {v: path_length_by_x(p, x_val)
-               for v, p in d.items()}
-           for u, d in sp.items()}
+    for i, j in G.edges:
+        G[i][j]["lp_weight"] = 1 - edge_weight(x_val, i, j)
 
-    # spl = dict(nx.shortest_path_length(G))
+    sp = dict(nx.shortest_path(G, weight="lp_weight"))
+
+    # spl = {u: {v: path_length_by_x(p, x_val)
+    #            for v, p in d.items()}
+    #        for u, d in sp.items()}
+
+    spl = dict(nx.shortest_path_length(G, weight="lp_weight"))
 
     GS = nx.Graph()
     for i in selected:
