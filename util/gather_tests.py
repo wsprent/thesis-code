@@ -35,7 +35,7 @@ class TestCase(object):
 
             times.append(t)
 
-        self.gap = (self.obj - self.bound) / self.obj
+        self.gap = max((self.obj - self.bound) / self.obj, 0)
         self.times = times
 
         # xxxx/timings/series-size-keys
@@ -58,6 +58,10 @@ class TestCase(object):
                 self.heuristics = False
             elif opt == "h+":
                 self.heuristics = True
+            elif opt == "s":
+                self.strengthen = False
+            elif opt == "s+":
+                self.strengthen = True
 
         # Extract Name
 
@@ -127,17 +131,30 @@ def tprint(*args, line=True, lb=True, **kwargs):
     print(*args, sep=" & ", end=end, **kwargs)
 
 
-def format_time(t):
-    return "${:.5g}$".format(t)
+def format_time(tc, lim=-float("inf")):
+    num = "{:.5g}".format(tc.mean)
+    if not tc.opt:
+        num = "\\mathit{" + num + "}^*"
+    elif tc.mean <= lim:
+        num = "\\mathbf{" + num + "}"
+    return "$" + num + "$"
 
 
-def format_obj(t):
-    return "${:.2f}$".format(t)
+def format_times(*args):
+    minarg = min(args, key=lambda tc: tc.mean)
+    return map(lambda x: format_time(x, minarg.mean), args)
+
+
+def format_obj(*tc):
+    for t in tc:
+        if t.opt:
+            return "${:.2f}$".format(t.obj)
+    return "$\\mathit{:.2f}^*$".format(min(tc, key=lambda x: x.obj).obj)
 
 
 def format_gap(g):
     string = "{:.2%}".format(g)
-    if g == 0:
+    if g < 10e-6:
         string = "\\mathbf{" + string + "}"
     return ("$" + string + "$").replace("%", "\\%")
 
@@ -161,8 +178,33 @@ def get_max_cuts(tcs):
     for t in tcs:
         if t.heuristics:
             continue
-        if t.max_cuts == 1:
+        if t.max_cuts == 0:
+            zero = t
+        elif t.max_cuts == 1:
             one = t
         elif t.max_cuts == 25:
             tf = t
-    return one, tf
+    return zero, one, tf
+
+
+def get_heuristics(tcs, mc):
+
+    for t in tcs:
+        if not t.max_cuts == mc:
+            continue
+        if t.heuristics:
+            plus = t
+        else:
+            minus = t
+    return minus, plus
+
+
+def get_strengthen(tcs, mc):
+    for t in tcs:
+        if t.heuristics or not t.max_cuts == mc:
+            continue
+        if t.strengthen:
+            plus = t
+        else:
+            minus = t
+    return minus, plus
