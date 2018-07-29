@@ -26,7 +26,7 @@ def print_max_cut_table(series):
             a, b, c = get_max_cuts(tests[name])
             tprint(name,
                    *format_times(a, b, c),
-                   format_gap(max(a.gap, b.gap)),
+                   format_gap(max(a.gap, b.gap, c.gap)),
                    format_obj(a, b, c),
                    line=False)
         tprint("", lb=False)

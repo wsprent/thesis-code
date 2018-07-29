@@ -176,7 +176,7 @@ def print_ending():
 def get_max_cuts(tcs):
 
     for t in tcs:
-        if t.heuristics:
+        if t.heuristics or t.strengthen:
             continue
         if t.max_cuts == 0:
             zero = t
@@ -190,7 +190,7 @@ def get_max_cuts(tcs):
 def get_heuristics(tcs, mc):
 
     for t in tcs:
-        if not t.max_cuts == mc:
+        if not t.max_cuts == mc and not t.strengthen:
             continue
         if t.heuristics:
             plus = t

@@ -20,7 +20,7 @@ def print_heuristics_table(series):
 
     for sname, tests in series.items():
         tprint(lb=False)
-        tprint("", multicol(cols-3, sname), "")
+        tprint("", multicol(cols-3, sname), "", "")
         names = sorted(tests.keys())
         for name in names:
             a, b = get_heuristics(tests[name], mc=25)

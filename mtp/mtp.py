@@ -94,7 +94,7 @@ def truncate(g, n, m):
         assignment_map[v_adj] = v
         danger = False
         if gp.number_of_edges() > m:
-            target = min(len(gp.adj[v]) / 2, 1)
+            target = min(len(gp.adj[v]) * 1.0 * node_ratio, 1)
 
             while not danger and len(gp.adj[v]) > target:
                 i, j, data = random.choice(tuple(gp.edges(v, data=True)))
